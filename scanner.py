@@ -94,3 +94,20 @@ class WebCrawler:
             logging.error(f"Error getting form details: {e}")
         return details
 
+    def send_request(self, form_details, url, payload):
+        data = {}
+        for input in form_details['inputs']:
+            if input['type'] in ('text', 'search'):
+                data[input['name']] = payload
+            else:
+                data[input['name']] = 'test'
+        if form_details['method'] == 'post':
+            return requests.post(
+                urljoin(url, form_details['action']),
+                data=data, headers=self.headers, timeout=self.timeout,
+            )
+        return requests.get(
+            urljoin(url, form_details['action']),
+            params=data, headers=self.headers, timeout=self.timeout,
+        )
+
