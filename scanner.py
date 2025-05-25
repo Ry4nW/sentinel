@@ -165,3 +165,8 @@ class WebCrawler:
     def test_directory_traversal(self, form_details, url):
         for payload in LFI_PAYLOADS:
             response = self.send_request(form_details, url, payload)
+            if "root:" in response.text:
+                self._record('Directory Traversal', url, payload, 'high')
+                return
+
+    def test_html_injection(self, form_details, url):
