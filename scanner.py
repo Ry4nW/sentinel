@@ -111,3 +111,57 @@ class WebCrawler:
             params=data, headers=self.headers, timeout=self.timeout,
         )
 
+    def _record(self, vuln_type, url, payload, severity='high'):
+        msg = f"{vuln_type} vulnerability found at {url}"
+        logging.info(msg)
+        print(msg)
+        self.findings.append({'type': vuln_type, 'url': url, 'payload': payload, 'severity': severity})
+
+    def test_vulnerabilities(self, form_details, url):
+        self.test_sql_injection(form_details, url)
+        self.test_xss(form_details, url)
+        self.test_command_injection(form_details, url)
+        self.test_file_inclusion(form_details, url)
+        self.test_directory_traversal(form_details, url)
+        self.test_html_injection(form_details, url)
+        self.test_csrf(form_details, url)
+        self.test_lfi(form_details, url)
+        self.test_rfi(form_details, url)
+        self.test_ldap_injection(form_details, url)
+        self.test_xxe(form_details, url)
+        self.test_ssrf(form_details, url)
+        self.test_unvalidated_redirects(form_details, url)
+        self.test_clickjacking(url)
+
+    def test_sql_injection(self, form_details, url):
+        for payload in SQL_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            for pattern in SQL_ERROR_PATTERNS:
+                if re.search(pattern, response.text, re.IGNORECASE):
+                    self._record('SQL Injection', url, payload, 'critical')
+                    return
+
+    def test_xss(self, form_details, url):
+        for payload in XSS_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if payload in response.text:
+                self._record('XSS', url, payload, 'high')
+                return
+
+    def test_command_injection(self, form_details, url):
+        for payload in CMD_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "PING" in response.text:
+                self._record('Command Injection', url, payload, 'critical')
+                return
+
+    def test_file_inclusion(self, form_details, url):
+        for payload in LFI_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "root:" in response.text:
+                self._record('Local File Inclusion', url, payload, 'critical')
+                return
+
+    def test_directory_traversal(self, form_details, url):
+        for payload in LFI_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
