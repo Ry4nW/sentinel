@@ -170,3 +170,77 @@ class WebCrawler:
                 return
 
     def test_html_injection(self, form_details, url):
+        for payload in HTML_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if payload in response.text:
+                self._record('HTML Injection', url, payload, 'medium')
+                return
+
+    def test_csrf(self, form_details, url):
+        for payload in CSRF_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if payload in response.text:
+                self._record('CSRF', url, payload, 'medium')
+                return
+
+    def test_lfi(self, form_details, url):
+        for payload in LFI_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "root:" in response.text:
+                self._record('Local File Inclusion', url, payload, 'critical')
+                return
+
+    def test_rfi(self, form_details, url):
+        for payload in RFI_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "malicious" in response.text:
+                self._record('Remote File Inclusion', url, payload, 'critical')
+                return
+
+    def test_ldap_injection(self, form_details, url):
+        for payload in LDAP_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "ldap" in response.text:
+                self._record('LDAP Injection', url, payload, 'high')
+                return
+
+    def test_xxe(self, form_details, url):
+        for payload in XXE_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "root:" in response.text:
+                self._record('XXE', url, payload, 'critical')
+                return
+
+    def test_ssrf(self, form_details, url):
+        for payload in SSRF_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "localhost" in response.text:
+                self._record('SSRF', url, payload, 'high')
+                return
+
+    def test_unvalidated_redirects(self, form_details, url):
+        for payload in REDIRECT_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if payload in response.text:
+                self._record('Unvalidated Redirect', url, payload, 'medium')
+                return
+
+    def test_clickjacking(self, url):
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if 'X-Frame-Options' not in response.headers:
+                self._record('Clickjacking', url, None, 'medium')
+        except requests.RequestException as e:
+            logging.error(f"Failed to fetch {url}: {e}")
+
+
+if __name__ == '__main__':
+    base_url = 'http://localhost:4280/vulnerabilities/sqli/'
+    crawler = WebCrawler(base_url)
+    crawler.crawl()
+    print(f"Visited URLs: {crawler.visited_urls}")
+
+'''
+docker run --rm -it -p 4280:80 vulnerables/web-dvwa
+https://github.com/digininja/DVWA
+'''
