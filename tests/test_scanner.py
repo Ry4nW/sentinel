@@ -30,3 +30,29 @@ class TestGetFormDetails:
         form = soup.find('form')
         details = crawler.get_form_details(form)
         assert details['method'] == 'get'
+
+    def test_collects_input_fields(self, crawler):
+        soup = make_soup(
+            '<form action="/" method="get">'
+            '<input type="text" name="user">'
+            '<input type="password" name="pass">'
+            '</form>'
+        )
+        form = soup.find('form')
+        details = crawler.get_form_details(form)
+        names = [i['name'] for i in details['inputs']]
+        assert 'user' in names
+        assert 'pass' in names
+
+
+class TestExtractLinks:
+    def test_stays_on_same_domain(self, crawler):
+        soup = make_soup(
+            '<a href="/page1">local</a>'
+            '<a href="http://evil.com/x">external</a>'
+        )
+        crawler.extract_links(soup, BASE_URL)
+        assert any('example.com' in u for u in crawler.urls_to_visit)
+        assert not any('evil.com' in u for u in crawler.urls_to_visit)
+
+    def test_resolves_relative_links(self, crawler):
