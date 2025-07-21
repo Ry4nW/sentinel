@@ -56,3 +56,47 @@ class TestExtractLinks:
         assert not any('evil.com' in u for u in crawler.urls_to_visit)
 
     def test_resolves_relative_links(self, crawler):
+        soup = make_soup('<a href="/about">about</a>')
+        crawler.extract_links(soup, BASE_URL)
+        assert 'http://example.com/about' in crawler.urls_to_visit
+
+
+class TestVulnerabilityDetection:
+    @patch('scanner.WebCrawler.send_request')
+    def test_sql_injection_detected_on_error_pattern(self, mock_send, crawler):
+        mock_resp = MagicMock()
+        mock_resp.text = "You have an error in your SQL syntax"
+        mock_send.return_value = mock_resp
+        form = {'action': '/search', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'q'}]}
+        with patch('scanner.logging') as mock_log:
+            crawler.test_sql_injection(form, BASE_URL)
+            assert mock_log.info.called
+
+    @patch('scanner.WebCrawler.send_request')
+    def test_xss_detected_when_payload_reflected(self, mock_send, crawler):
+        payload = "<script>alert('XSS')</script>"
+        mock_resp = MagicMock()
+        mock_resp.text = f'<html>{payload}</html>'
+        mock_send.return_value = mock_resp
+        form = {'action': '/', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'q'}]}
+        with patch('scanner.logging') as mock_log:
+            crawler.test_xss(form, BASE_URL)
+            assert mock_log.info.called
+
+    @patch('requests.get')
+    def test_clickjacking_detected_without_header(self, mock_get, crawler):
+        mock_resp = MagicMock()
+        mock_resp.headers = {}
+        mock_get.return_value = mock_resp
+        with patch('scanner.logging') as mock_log:
+            crawler.test_clickjacking(BASE_URL)
+            assert mock_log.info.called
+
+    @patch('requests.get')
+    def test_clickjacking_not_flagged_with_header(self, mock_get, crawler):
+        mock_resp = MagicMock()
+        mock_resp.headers = {'X-Frame-Options': 'DENY'}
+        mock_get.return_value = mock_resp
+        with patch('scanner.logging') as mock_log:
+            crawler.test_clickjacking(BASE_URL)
+            mock_log.info.assert_not_called()
