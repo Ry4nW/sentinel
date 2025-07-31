@@ -1,0 +1,37 @@
+
+
+{
+  "_comment" : "what a sample report looks like",
+
+  "target": "http://localhost:4280/vulnerabilities/sqli/",
+  "visited": [
+    "http://localhost:4280/vulnerabilities/sqli/",
+    "http://localhost:4280/vulnerabilities/sqli/?id=1&Submit=Submit"
+  ],
+  "findings": [
+    {
+      "type": "SQL Injection",
+      "url": "http://localhost:4280/vulnerabilities/sqli/",
+      "payload": "' OR '1'='1",
+      "severity": "critical"
+    },
+    {
+      "type": "XSS",
+      "url": "http://localhost:4280/vulnerabilities/sqli/",
+      "payload": "<script>alert('XSS')</script>",
+      "severity": "high"
+    },
+    {
+      "type": "Clickjacking",
+      "url": "http://localhost:4280/vulnerabilities/sqli/",
+      "payload": null,
+      "severity": "medium"
+    },
+    {
+      "type": "SSRF",
+      "url": "http://localhost:4280/vulnerabilities/sqli/",
+      "payload": "http://127.0.0.1:80",
+      "severity": "high"
+    }
+  ]
+}
