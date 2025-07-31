@@ -1,0 +1,22 @@
+{
+  "_comment": "running scanner on 'damn vulnerable web app', docker command: docker run --rm -it -p 4280:80 vulnerables/web-dvwa",
+
+  "target": "http://localhost:4280/vulnerabilities/sqli/",
+  "visited": [
+    "http://localhost:4280/vulnerabilities/sqli/"
+  ],
+  "findings": [
+    {
+      "type": "SSRF",
+      "url": "http://localhost:4280/vulnerabilities/sqli/",
+      "payload": "http://127.0.0.1:80",
+      "severity": "high"
+    },
+    {
+      "type": "Clickjacking",
+      "url": "http://localhost:4280/vulnerabilities/sqli/",
+      "payload": null,
+      "severity": "medium"
+    }
+  ]
+}
