@@ -56,3 +56,32 @@ class WebCrawler:
                 url = self.urls_to_visit.pop(0)
             if url not in self.visited_urls:
                 self.visit_url(url)
+
+    def visit_url(self, url):
+        self.visited_urls.add(url)
+        try:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            if response.status_code == 200:
+                response.encoding = response.apparent_encoding
+                soup = BeautifulSoup(response.text, 'html.parser')
+                self.extract_links(soup, url)
+                self.scan_forms(soup, url)
+        except requests.RequestException as e:
+            logging.error(f"Failed to fetch {url}: {e}")
+
+    def extract_links(self, soup, current_url):
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if not href.startswith('http'):
+                href = urljoin(current_url, href)
+            parsed_href = urlparse(href)
+            if parsed_href.scheme not in ('http', 'https'):
+                continue
+            href = parsed_href._replace(fragment='').geturl()
+            if parsed_href.netloc == urlparse(self.base_url).netloc:
+                with self.lock:
+                    if href not in self.visited_urls and href not in self.urls_to_visit:
+                        self.urls_to_visit.append(href)
+
+    def scan_forms(self, soup, url):
+        for form in soup.find_all('form'):
