@@ -1,5 +1,6 @@
 THREADS = 10
 TIMEOUT = 10  # seconds per request
+DELAY = 0  # seconds to wait before each outbound request, per thread
 USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
