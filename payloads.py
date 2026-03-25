@@ -14,6 +14,11 @@ SQL_ERROR_PATTERNS = [
     "quoted string not properly terminated",
 ]
 
+# used for boolean-based blind sqli: a query that's always true should look
+# like a normal response, a query that's always false should look different
+BLIND_SQL_TRUE_PAYLOAD = "' OR '1'='1"
+BLIND_SQL_FALSE_PAYLOAD = "' AND '1'='2"
+
 XSS_PAYLOADS = [
     "<script>alert('XSS')</script>",
     "<img src='x' onerror='alert(1)'>",
