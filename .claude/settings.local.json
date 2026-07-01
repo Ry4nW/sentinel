@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(& \"c:\\\\Users\\\\ryanb\\\\Documents\\\\projects\\\\sentinel\\\\.venv\\\\bin\\\\pip.exe\" install -r \"c:\\\\Users\\\\ryanb\\\\Documents\\\\projects\\\\sentinel\\\\requirements.txt\")"
-    ]
-  }
-}
