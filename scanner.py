@@ -300,3 +300,25 @@ class WebCrawler:
             if "root:" in response.text:
                 self._record('XXE', url, payload, 'critical')
                 return
+
+    def test_ssrf(self, form_details, url):
+        for payload in SSRF_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if "localhost" in response.text:
+                self._record('SSRF', url, payload, 'high')
+                return
+
+    def test_unvalidated_redirects(self, form_details, url):
+        for payload in REDIRECT_PAYLOADS:
+            response = self.send_request(form_details, url, payload)
+            if payload in response.text:
+                self._record('Unvalidated Redirect', url, payload, 'medium')
+                return
+
+    def test_clickjacking(self, url):
+        self._throttle()
+        try:
+            response = self.session.get(url, timeout=self.timeout)
+            if 'X-Frame-Options' not in response.headers:
+                self._record('Clickjacking', url, None, 'medium')
+        except requests.RequestException as e:
