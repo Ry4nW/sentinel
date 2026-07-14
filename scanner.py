@@ -322,3 +322,16 @@ class WebCrawler:
             if 'X-Frame-Options' not in response.headers:
                 self._record('Clickjacking', url, None, 'medium')
         except requests.RequestException as e:
+            logging.error(f"Failed to fetch {url}: {e}")
+
+
+if __name__ == '__main__':
+    base_url = 'http://localhost:4280/vulnerabilities/sqli/'
+    crawler = WebCrawler(base_url)
+    crawler.crawl()
+    print(f"Visited URLs: {crawler.visited_urls}")
+
+'''
+docker run --rm -it -p 4280:80 vulnerables/web-dvwa
+https://github.com/digininja/DVWA
+'''
