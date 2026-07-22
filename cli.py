@@ -41,3 +41,67 @@ def parse_args():
         help='Max link-following depth from the start URL (default: unlimited)',
     )
     parser.add_argument(
+        '--max-pages', type=int, default=None,
+        help='Stop crawling after visiting this many pages (default: unlimited)',
+    )
+    parser.add_argument(
+        '--fail-on', choices=['none'] + SEVERITY_ORDER, default='none',
+        help='Exit non-zero if a finding at or above this severity turns up, for CI (default: none)',
+    )
+    return parser.parse_args()
+
+
+def should_fail(findings, fail_on):
+    if fail_on == 'none':
+        return False
+    threshold = SEVERITY_ORDER.index(fail_on)
+    return any(
+        f['severity'] in SEVERITY_ORDER and SEVERITY_ORDER.index(f['severity']) <= threshold
+        for f in findings
+    )
+
+
+def main():
+    args = parse_args()
+
+    print(f'[*] Target : {args.url}')
+    print(f'[*] Threads: {args.threads}')
+    print(f'[*] Output : {args.output}')
+    print()
+
+    crawler = WebCrawler(
+        args.url,
+        threads=args.threads,
+        timeout=args.timeout,
+        delay=args.delay,
+        cookie=args.cookie,
+        max_depth=args.max_depth,
+        max_pages=args.max_pages,
+    )
+    crawler.crawl()
+
+    os.makedirs(args.output, exist_ok=True)
+    report = {
+        'target': args.url,
+        'visited': list(crawler.visited_urls),
+        'findings': crawler.findings,
+    }
+
+    report_path = os.path.join(args.output, 'scan_report.json')
+    with open(report_path, 'w') as f:
+        json.dump(report, f, indent=2)
+
+    html_path = os.path.join(args.output, 'scan_report.html')
+    write_html_report(report, html_path)
+
+    print(f'\n[+] Visited {len(crawler.visited_urls)} URL(s)')
+    print(f'[+] Found   {len(crawler.findings)} finding(s)')
+    print(f'[+] Report  {report_path}')
+    print(f'[+] Report  {html_path}')
+
+    if should_fail(crawler.findings, args.fail_on):
+        raise SystemExit(1)
+
+
+if __name__ == '__main__':
+    main()
