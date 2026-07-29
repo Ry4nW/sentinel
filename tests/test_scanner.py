@@ -120,3 +120,145 @@ class TestWorker:
         crawler.queue.put(None)
         with patch.object(crawler, 'visit_url') as mock_visit:
             crawler.worker()
+        assert mock_visit.call_count == 2
+
+    def test_worker_skips_already_visited_url(self, crawler):
+        crawler.visited_urls.add('http://example.com/a')
+        crawler.queue.put('http://example.com/a')
+        crawler.queue.put(None)
+        with patch.object(crawler, 'visit_url') as mock_visit:
+            crawler.worker()
+        mock_visit.assert_not_called()
+
+
+class TestScanQueryParams:
+    def test_fuzzes_existing_query_params(self, crawler):
+        with patch.object(crawler, 'test_vulnerabilities') as mock_test:
+            crawler.scan_query_params('http://example.com/search?id=1&Submit=Submit')
+        mock_test.assert_called_once()
+        form_details, url = mock_test.call_args[0]
+        assert form_details['method'] == 'get'
+        assert form_details['action'] == 'http://example.com/search'
+        names = [i['name'] for i in form_details['inputs']]
+        assert 'id' in names and 'Submit' in names
+
+    def test_skips_urls_without_query_string(self, crawler):
+        with patch.object(crawler, 'test_vulnerabilities') as mock_test:
+            crawler.scan_query_params('http://example.com/about')
+        mock_test.assert_not_called()
+
+
+class TestAuthAndThrottling:
+    def test_cookie_is_attached_to_session(self):
+        c = WebCrawler(BASE_URL, cookie='PHPSESSID=abc123; security=low')
+        assert c.session.headers['Cookie'] == 'PHPSESSID=abc123; security=low'
+
+    def test_throttle_sleeps_when_delay_set(self):
+        c = WebCrawler(BASE_URL, delay=0.5)
+        with patch('scanner.time.sleep') as mock_sleep:
+            c._throttle()
+        mock_sleep.assert_called_once_with(0.5)
+
+    def test_throttle_does_nothing_by_default(self, crawler):
+        with patch('scanner.time.sleep') as mock_sleep:
+            crawler._throttle()
+        mock_sleep.assert_not_called()
+
+
+class TestVulnerabilityDetection:
+    @patch('scanner.WebCrawler.send_request')
+    def test_sql_injection_detected_on_error_pattern(self, mock_send, crawler):
+        mock_resp = MagicMock()
+        mock_resp.text = "You have an error in your SQL syntax"
+        mock_send.return_value = mock_resp
+        form = {'action': '/search', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'q'}]}
+        with patch('scanner.logging') as mock_log:
+            crawler.test_sql_injection(form, BASE_URL)
+            assert mock_log.info.called
+
+    @patch('scanner.WebCrawler.send_request')
+    def test_xss_detected_when_payload_reflected(self, mock_send, crawler):
+        payload = "<script>alert('XSS')</script>"
+        mock_resp = MagicMock()
+        mock_resp.text = f'<html>{payload}</html>'
+        mock_send.return_value = mock_resp
+        form = {'action': '/', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'q'}]}
+        with patch('scanner.logging') as mock_log:
+            crawler.test_xss(form, BASE_URL)
+            assert mock_log.info.called
+
+    @patch('requests.Session.get')
+    def test_clickjacking_detected_without_header(self, mock_get, crawler):
+        mock_resp = MagicMock()
+        mock_resp.headers = {}
+        mock_get.return_value = mock_resp
+        with patch('scanner.logging') as mock_log:
+            crawler.test_clickjacking(BASE_URL)
+            assert mock_log.info.called
+
+    @patch('requests.Session.get')
+    def test_clickjacking_not_flagged_with_header(self, mock_get, crawler):
+        mock_resp = MagicMock()
+        mock_resp.headers = {'X-Frame-Options': 'DENY'}
+        mock_get.return_value = mock_resp
+        with patch('scanner.logging') as mock_log:
+            crawler.test_clickjacking(BASE_URL)
+            mock_log.info.assert_not_called()
+
+
+class TestBlindSqlInjection:
+    @patch('scanner.WebCrawler.send_request')
+    def test_flags_boolean_based_blind_sqli(self, mock_send, crawler):
+        baseline = MagicMock(text='5 results')
+        true_resp = MagicMock(text='5 results')
+        false_resp = MagicMock(text='0 results')
+        mock_send.side_effect = [baseline, true_resp, false_resp]
+        form = {'action': '/', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'id'}]}
+        with patch('scanner.logging'):
+            crawler.test_blind_sql_injection(form, BASE_URL)
+        assert any(f['type'] == 'Blind SQL Injection' for f in crawler.findings)
+
+    @patch('scanner.WebCrawler.send_request')
+    def test_does_not_flag_when_responses_identical(self, mock_send, crawler):
+        same = MagicMock(text='same page')
+        mock_send.side_effect = [same, same, same]
+        form = {'action': '/', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'id'}]}
+        with patch('scanner.logging'):
+            crawler.test_blind_sql_injection(form, BASE_URL)
+        assert crawler.findings == []
+
+
+class TestVulnerabilityDispatch:
+    def test_runs_every_check_and_clickjacking(self, crawler):
+        form = {'action': '/', 'method': 'get', 'inputs': []}
+        check_names = [
+            'test_sql_injection', 'test_blind_sql_injection', 'test_xss',
+            'test_command_injection', 'test_file_inclusion', 'test_directory_traversal',
+            'test_html_injection', 'test_csrf', 'test_rfi', 'test_ldap_injection',
+            'test_xxe', 'test_ssrf', 'test_unvalidated_redirects', 'test_clickjacking',
+        ]
+        patchers = [patch.object(crawler, name) for name in check_names]
+        mocks = [p.start() for p in patchers]
+        try:
+            crawler.test_vulnerabilities(form, BASE_URL)
+        finally:
+            for p in patchers:
+                p.stop()
+        for name, mock in zip(check_names, mocks):
+            assert mock.called, f'{name} was not called'
+
+
+class TestSendRequest:
+    @patch('requests.Session.get')
+    def test_handles_form_with_no_action(self, mock_get, crawler):
+        mock_get.return_value = MagicMock(text='')
+        form = {'action': None, 'method': 'get', 'inputs': [{'type': 'text', 'name': 'q'}]}
+        crawler.send_request(form, BASE_URL, 'payload')
+        called_url = mock_get.call_args[0][0]
+        assert called_url == BASE_URL
+
+    @patch('requests.Session.get')
+    def test_skips_inputs_with_no_name(self, mock_get, crawler):
+        mock_get.return_value = MagicMock(text='')
+        form = {
+            'action': '/search', 'method': 'get',
