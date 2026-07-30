@@ -262,3 +262,14 @@ class TestSendRequest:
         mock_get.return_value = MagicMock(text='')
         form = {
             'action': '/search', 'method': 'get',
+            'inputs': [{'type': 'text', 'name': 'q'}, {'type': 'submit', 'name': None}],
+        }
+        crawler.send_request(form, BASE_URL, 'payload')
+        sent_params = mock_get.call_args[1]['params']
+        assert None not in sent_params
+
+    @patch('requests.Session.get', side_effect=requests.exceptions.ConnectionError('refused'))
+    def test_returns_empty_response_on_connection_error(self, mock_get, crawler):
+        form = {'action': '/search', 'method': 'get', 'inputs': [{'type': 'text', 'name': 'q'}]}
+        response = crawler.send_request(form, BASE_URL, 'payload')
+        assert response.text == ''
