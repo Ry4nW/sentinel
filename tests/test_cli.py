@@ -14,3 +14,8 @@ def test_fails_when_finding_above_threshold():
 
 
 def test_does_not_fail_when_only_below_threshold():
+    assert should_fail([{'severity': 'low'}], 'critical') is False
+
+
+def test_no_findings_never_fails():
+    assert should_fail([], 'critical') is False
